@@ -322,16 +322,28 @@ def tool_verificar_bot(bot_nombre: str) -> str:
         resp = requests.get(url, timeout=10, allow_redirects=True)
         latencia = int((datetime.now() - start).total_seconds() * 1000)
 
-        # Cualquier respuesta HTTP = bot activo en Railway (aunque sea 502)
+        # Cualquier respuesta HTTP = bot activo en Railway
         resultado.append(f"Estado: ACTIVO - responde en {latencia}ms (HTTP {resp.status_code})")
         update_bot_status(display_name, "activo")
 
-        # Intentar leer respuesta JSON si existe
+        # Intentar leer /api/status para datos enriquecidos
         try:
-            data = resp.json()
-            resultado.append(f"Respuesta: {json.dumps(data, ensure_ascii=False)[:300]}")
+            api_url = url.rstrip('/') + '/api/status'
+            api_resp = requests.get(api_url, timeout=8)
+            data = api_resp.json()
+            if data.get('ventas_bot'):
+                v = data['ventas_bot']
+                resultado.append(f"Ventas hoy (bot): ${v.get('total',0):,.0f} | {v.get('tickets',0)} tickets")
+            if data.get('pos'):
+                p = data['pos']
+                resultado.append(f"VectorPOS hoy: ${p.get('total_dia',0):,.0f} | {p.get('transacciones',0)} transacciones")
+            if data.get('meta_mensual'):
+                resultado.append(f"Meta mensual: ${int(data['meta_mensual']):,.0f}")
+            if data.get('uptime'):
+                mins = int(data['uptime']) // 60
+                resultado.append(f"Uptime: {mins} minutos")
         except Exception:
-            resultado.append(f"Respuesta: {resp.text[:200]}")
+            pass  # Sin /api/status, igual sabemos que el bot está activo
 
     except requests.exceptions.ConnectionError:
         resultado.append("Conexion rechazada - bot CAIDO o no responde")
