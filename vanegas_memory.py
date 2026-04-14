@@ -80,6 +80,7 @@ def init_db():
 
 def save_memory(key: str, value) -> str:
     """Guarda un valor en la memoria persistente."""
+    init_db()
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
@@ -115,6 +116,7 @@ def list_memory_keys() -> list:
 
 def add_conversation_turn(role: str, content: str):
     """Agrega un turno al historial de conversación."""
+    init_db()
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
@@ -127,6 +129,7 @@ def add_conversation_turn(role: str, content: str):
 
 def get_recent_conversation(limit: int = 20) -> list:
     """Obtiene los últimos N turnos de conversación."""
+    init_db()
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
@@ -152,6 +155,7 @@ def record_token_usage(input_tokens: int, output_tokens: int,
                        cache_creation: int = 0, cache_read: int = 0,
                        task: str = "general"):
     """Registra el uso de tokens de una llamada a la API."""
+    init_db()
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("""
@@ -166,6 +170,7 @@ def record_token_usage(input_tokens: int, output_tokens: int,
 
 def get_token_stats(days: int = 1) -> dict:
     """Obtiene estadísticas de uso de tokens en los últimos N días."""
+    init_db()  # Garantiza que las tablas existen
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     cutoff = datetime.now().isoformat()[:10]  # fecha de hoy
