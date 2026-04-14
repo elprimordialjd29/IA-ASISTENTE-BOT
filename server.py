@@ -56,7 +56,10 @@ VANEGAS_PASSWORD = os.getenv("VANEGAS_PASSWORD", "vanegas2024")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Arranca el monitor proactivo al iniciar el servidor."""
+    """Inicializa DB, arranca monitor proactivo."""
+    from vanegas_memory import init_db
+    init_db()
+    logger.info("Base de datos inicializada")
     if monitor:
         asyncio.create_task(monitor.start_all())
         logger.info("Monitor proactivo arrancado")
