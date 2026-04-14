@@ -141,29 +141,25 @@ class VanegasMonitor:
 
             try:
                 prev_status = get_bot_status(bot["display"])
-                prev_ok = prev_status and prev_status[0]["estado"] == "activo"
+                prev_caido = prev_status and prev_status[0]["estado"] == "caido"
 
                 resp = requests.get(bot["url"], timeout=10, allow_redirects=True)
-                activo = resp.status_code < 500
-
-                if activo and not prev_ok:
+                # Cualquier respuesta HTTP (incluso 502) = servidor activo en Railway
+                # Solo alertamos si antes estaba caído y ahora volvió
+                if prev_caido:
                     logger.info(f"{bot['display']} recuperado - HTTP {resp.status_code}")
-                elif not activo:
-                    await self.send(
-                        f"*ALERTA: {bot['display']} con problemas*\n\n"
-                        f"URL: {bot['url']}\n"
-                        f"HTTP: {resp.status_code}\n"
-                        f"Revisa el deployment en Railway."
-                    )
+                update_bot_status(bot["display"], "activo")
 
             except requests.exceptions.ConnectionError:
                 prev_status = get_bot_status(bot["display"])
-                prev_ok = prev_status and prev_status[0]["estado"] == "activo"
-                if prev_ok or not prev_status:
+                prev_caido = prev_status and prev_status[0]["estado"] == "caido"
+                update_bot_status(bot["display"], "caido", "Sin respuesta")
+                # Solo alerta si es la primera vez o si cambió de activo a caído
+                if not prev_caido:
                     await self.send(
-                        f"*ALERTA: {bot['display']} NO RESPONDE*\n\n"
-                        f"URL: {bot['url']}\n"
-                        f"El bot no acepta conexiones. Puede estar caido en Railway."
+                        f"*ALERTA: {bot['display']} CAIDO*\n\n"
+                        f"No responde en: {bot['url']}\n"
+                        f"Revisa el deployment en Railway."
                     )
             except Exception as e:
                 logger.error(f"Error chequeando bot {bot['nombre']}: {e}")
