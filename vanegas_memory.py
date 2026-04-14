@@ -10,12 +10,14 @@ from datetime import datetime
 from pathlib import Path
 
 
-DB_PATH = Path("data/vanegas.db")
+# Ruta absoluta basada en la ubicación del archivo (funciona en Railway/Docker)
+DB_PATH = Path(__file__).parent / "data" / "vanegas.db"
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 def init_db():
     """Inicializa la base de datos SQLite con todas las tablas necesarias."""
-    DB_PATH.parent.mkdir(exist_ok=True)
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
@@ -280,3 +282,7 @@ def is_email_processed(message_id: str) -> bool:
     result = c.fetchone() is not None
     conn.close()
     return result
+
+
+# Auto-inicializar al importar el módulo
+init_db()
