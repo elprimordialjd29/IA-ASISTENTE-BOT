@@ -1,0 +1,30 @@
+# Variables de entorno - NUNCA subir al repo
+.env
+
+# Datos locales y credenciales
+data/
+*.json
+*.token
+*.pickle
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

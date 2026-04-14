@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VANEGAS — Asistente Autónomo</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+<!-- LOGIN OVERLAY -->
+<div id="loginOverlay" class="overlay">
+  <div class="login-card">
+    <div class="logo-big">⚡</div>
+    <h1 class="login-title">VANEGAS</h1>
+    <p class="login-sub">Asistente Personal Autónomo</p>
+    <div class="input-group">
+      <input type="password" id="passwordInput" placeholder="Contraseña de acceso" autocomplete="current-password" />
+      <button id="loginBtn">Entrar</button>
+    </div>
+    <p id="loginError" class="error-msg hidden">Contraseña incorrecta</p>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" class="hidden">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="logo">⚡</span>
+      <span class="brand">VANEGAS</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-btn active" data-panel="chat">
+        <span class="icon">💬</span> Chat
+      </button>
+      <button class="nav-btn" data-panel="dashboard">
+        <span class="icon">📊</span> Dashboard
+      </button>
+    </nav>
+
+    <div class="sidebar-stats">
+      <div class="stat-item">
+        <span class="stat-label">Tokens hoy</span>
+        <span class="stat-value" id="tokensToday">—</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Costo hoy</span>
+        <span class="stat-value" id="costToday">—</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Estado</span>
+        <span class="stat-value status-dot" id="statusDot">●&nbsp;Conectando</span>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <button id="clearChatBtn" class="secondary-btn">🗑 Limpiar chat</button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+
+    <!-- CHAT PANEL -->
+    <section id="panelChat" class="panel active">
+      <div class="chat-header">
+        <h2>Chat con VANEGAS</h2>
+        <div class="typing-indicator hidden" id="typingIndicator">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+
+      <div class="chat-messages" id="chatMessages">
+        <div class="message assistant-msg">
+          <div class="msg-avatar">⚡</div>
+          <div class="msg-body">
+            <p>¡Hola! Soy <strong>VANEGAS</strong>, tu asistente autónomo. Estoy listo para ayudarte con:</p>
+            <ul>
+              <li>📧 Revisar y gestionar tus emails de Gmail</li>
+              <li>🤖 Monitorear y diagnosticar tus bots (Chu y Bot Salud)</li>
+              <li>💻 Crear scripts, apps y archivos de código</li>
+              <li>🌐 Revisar y analizar páginas web</li>
+              <li>📈 Rastrear consumo de tokens de Claude</li>
+            </ul>
+            <p>¿En qué te ayudo hoy?</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-input-area">
+        <div class="tool-indicator hidden" id="toolIndicator">
+          <span class="tool-spinner">⟳</span>
+          <span id="toolName">Ejecutando herramienta...</span>
+        </div>
+        <div class="input-row">
+          <textarea
+            id="messageInput"
+            placeholder="Escribe tu mensaje aquí... (Enter para enviar, Shift+Enter para nueva línea)"
+            rows="1"
+          ></textarea>
+          <button id="sendBtn" class="send-btn" disabled>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- DASHBOARD PANEL -->
+    <section id="panelDashboard" class="panel hidden">
+      <div class="dashboard-header">
+        <h2>Dashboard</h2>
+        <button id="refreshDashboard" class="icon-btn">🔄 Actualizar</button>
+      </div>
+
+      <div class="dashboard-grid">
+
+        <!-- Token Usage Card -->
+        <div class="dash-card">
+          <div class="card-header">
+            <span class="card-icon">📈</span>
+            <h3>Consumo de Tokens</h3>
+          </div>
+          <div id="tokenChart" class="token-bars"></div>
+          <div class="token-totals">
+            <div class="total-item">
+              <span>Hoy</span>
+              <strong id="dashTokensToday">—</strong>
+            </div>
+            <div class="total-item">
+              <span>7 días</span>
+              <strong id="dashTokens7d">—</strong>
+            </div>
+            <div class="total-item">
+              <span>Costo 7d</span>
+              <strong id="dashCost7d">—</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- System Status Card -->
+        <div class="dash-card">
+          <div class="card-header">
+            <span class="card-icon">⚙️</span>
+            <h3>Estado del Sistema</h3>
+          </div>
+          <div class="status-list" id="systemStatus">
+            <div class="status-row">
+              <span>Agente Claude</span>
+              <span class="badge loading">Cargando...</span>
+            </div>
+            <div class="status-row">
+              <span>Monitor Proactivo</span>
+              <span class="badge loading">Cargando...</span>
+            </div>
+            <div class="status-row">
+              <span>Telegram Alertas</span>
+              <span class="badge loading">Cargando...</span>
+            </div>
+          </div>
+          <button id="summaryBtn" class="action-btn" style="margin-top:16px">
+            📋 Generar resumen del día
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Markdown renderer (marked.js CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<!-- Highlight.js for code blocks -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
