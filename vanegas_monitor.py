@@ -119,76 +119,52 @@ class VanegasMonitor:
             await asyncio.sleep(self.bot_interval * 60)
 
     async def _check_bots(self):
-        """Verifica si los bots están corriendo correctamente."""
-        import psutil
-        from pathlib import Path
+        """Verifica si los bots estan corriendo via HTTP ping (Railway deployments)."""
+        import requests
 
         bots = [
             {
                 "nombre": "perfumeria",
-                "display": os.getenv("BOT_PERFUMERIA_NAME", "Chu (Perfumería)"),
-                "path": os.getenv("BOT_PERFUMERIA_PATH", "../perfumeria-bot"),
-                "script": os.getenv("BOT_PERFUMERIA_SCRIPT", "bot.js"),
+                "display": os.getenv("BOT_PERFUMERIA_NAME", "Chu (Perfumeria)"),
+                "url": os.getenv("BOT_PERFUMERIA_URL", "https://perfumeria-bot-production.up.railway.app"),
             },
             {
                 "nombre": "salud",
                 "display": os.getenv("BOT_SALUD_NAME", "Bot Salud"),
-                "path": os.getenv("BOT_SALUD_PATH", "../bot-salud"),
-                "script": os.getenv("BOT_SALUD_SCRIPT", "index.js"),
+                "url": os.getenv("BOT_SALUD_URL", ""),
             }
         ]
 
         for bot in bots:
+            if not bot["url"]:
+                continue  # Sin URL configurada, omitir
+
             try:
-                bot_path = Path(bot["path"])
-                if not bot_path.exists():
-                    continue  # Bot no configurado, omitir
-
-                # Verificar si el proceso está corriendo
-                proceso_activo = False
-                for proc in psutil.process_iter(["pid", "name", "cmdline"]):
-                    try:
-                        cmdline = " ".join(proc.info.get("cmdline") or [])
-                        if bot["script"] in cmdline:
-                            proceso_activo = True
-                            break
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        continue
-
-                # Obtener estado previo para detectar cambios
                 prev_status = get_bot_status(bot["display"])
-                prev_running = prev_status and prev_status[0]["estado"] == "activo"
+                prev_ok = prev_status and prev_status[0]["estado"] == "activo"
 
-                if not proceso_activo:
-                    if prev_running or not prev_status:
-                        # Cambio de estado: estaba corriendo o es el primer chequeo
-                        await self.send(
-                            f"🚨 *ALERTA: {bot['display']} NO ESTÁ CORRIENDO*\n\n"
-                            f"El bot `{bot['script']}` no se detecta como proceso activo.\n"
-                            f"Usa: `/verificar_bot {bot['nombre']}` para diagnóstico completo."
-                        )
+                resp = requests.get(bot["url"], timeout=10, allow_redirects=True)
+                activo = resp.status_code < 500
 
-                # Verificar errores en logs
-                log_files = (
-                    list(bot_path.glob("*.log")) +
-                    list(bot_path.glob("logs/*.log"))
-                )
-                if log_files:
-                    log_file = sorted(log_files, key=lambda x: x.stat().st_mtime, reverse=True)[0]
-                    try:
-                        with open(log_file, "r", encoding="utf-8", errors="replace") as f:
-                            recent = f.readlines()[-10:]
-                        errors = [l.strip() for l in recent
-                                  if "error" in l.lower() and "favicon" not in l.lower()]
-                        if len(errors) >= 3:
-                            await self.send(
-                                f"⚠️ *{bot['display']}: Errores detectados en logs*\n\n"
-                                f"```\n{errors[-1][:300]}\n```\n"
-                                f"Usa `/ver_logs {bot['nombre']}` para más detalles."
-                            )
-                    except Exception:
-                        pass
+                if activo and not prev_ok:
+                    logger.info(f"{bot['display']} recuperado - HTTP {resp.status_code}")
+                elif not activo:
+                    await self.send(
+                        f"*ALERTA: {bot['display']} con problemas*\n\n"
+                        f"URL: {bot['url']}\n"
+                        f"HTTP: {resp.status_code}\n"
+                        f"Revisa el deployment en Railway."
+                    )
 
+            except requests.exceptions.ConnectionError:
+                prev_status = get_bot_status(bot["display"])
+                prev_ok = prev_status and prev_status[0]["estado"] == "activo"
+                if prev_ok or not prev_status:
+                    await self.send(
+                        f"*ALERTA: {bot['display']} NO RESPONDE*\n\n"
+                        f"URL: {bot['url']}\n"
+                        f"El bot no acepta conexiones. Puede estar caido en Railway."
+                    )
             except Exception as e:
                 logger.error(f"Error chequeando bot {bot['nombre']}: {e}")
 

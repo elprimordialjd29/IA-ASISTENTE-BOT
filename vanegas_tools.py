@@ -232,17 +232,13 @@ def _get_bot_config(bot_nombre: str) -> dict:
     nombre = bot_nombre.lower()
     if "perfum" in nombre or nombre == "chu":
         return {
-            "path": os.getenv("BOT_PERFUMERIA_PATH", "../perfumeria-bot"),
-            "script": os.getenv("BOT_PERFUMERIA_SCRIPT", "bot.js"),
-            "display_name": os.getenv("BOT_PERFUMERIA_NAME", "Chu (Perfumería)"),
-            "runtime": "node"
+            "display_name": os.getenv("BOT_PERFUMERIA_NAME", "Chu (Perfumeria)"),
+            "url": os.getenv("BOT_PERFUMERIA_URL", "https://perfumeria-bot-production.up.railway.app"),
         }
     elif "salud" in nombre or "health" in nombre:
         return {
-            "path": os.getenv("BOT_SALUD_PATH", "../bot-salud"),
-            "script": os.getenv("BOT_SALUD_SCRIPT", "index.js"),
             "display_name": os.getenv("BOT_SALUD_NAME", "Bot Salud"),
-            "runtime": "node"
+            "url": os.getenv("BOT_SALUD_URL", ""),
         }
     return None
 
@@ -303,82 +299,52 @@ def tool_crear_borrador(para: str, asunto: str, cuerpo: str) -> str:
 
 
 def tool_verificar_bot(bot_nombre: str) -> str:
+    """Verifica el estado de un bot via HTTP (bots desplegados en Railway)."""
     config = _get_bot_config(bot_nombre)
     if not config:
-        return f"❌ Bot '{bot_nombre}' no reconocido. Usa: 'perfumeria' o 'salud'"
+        return f"Bot '{bot_nombre}' no reconocido. Usa: 'perfumeria' o 'salud'"
 
-    bot_path = Path(config["path"])
     display_name = config["display_name"]
-    script = config["script"]
-    runtime = config["runtime"]
+    url = config.get("url", "")
 
-    resultado = [f"🤖 **Estado de {display_name}**\n"]
+    resultado = [f"**Estado de {display_name}**\n"]
 
-    # Verificar si el directorio existe
-    if not bot_path.exists():
-        status = "❌ directorio no encontrado"
-        resultado.append(f"📁 Ruta: {bot_path} → NO EXISTE")
-        update_bot_status(display_name, "error", "Directorio no encontrado")
+    if not url:
+        resultado.append(f"URL no configurada. Agrega BOT_{bot_nombre.upper()}_URL en las variables de entorno.")
+        update_bot_status(display_name, "sin_url")
         return "\n".join(resultado)
 
-    resultado.append(f"📁 Ruta: {bot_path} ✅")
+    resultado.append(f"URL: {url}")
 
-    # Verificar proceso corriendo
-    proceso_activo = False
-    script_name = script
+    # Ping HTTP al bot
+    try:
+        start = datetime.now()
+        resp = requests.get(url, timeout=10, allow_redirects=True)
+        latencia = int((datetime.now() - start).total_seconds() * 1000)
 
-    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+        if resp.status_code < 500:
+            resultado.append(f"Estado HTTP: {resp.status_code} - ACTIVO ({latencia}ms)")
+            update_bot_status(display_name, "activo")
+        else:
+            resultado.append(f"Estado HTTP: {resp.status_code} - ERROR DE SERVIDOR ({latencia}ms)")
+            update_bot_status(display_name, "error", f"HTTP {resp.status_code}")
+
+        # Intentar leer respuesta JSON si existe
         try:
-            cmdline = " ".join(proc.info.get("cmdline") or [])
-            if script_name in cmdline or (runtime in proc.info.get("name", "").lower() and script_name in cmdline):
-                proceso_activo = True
-                resultado.append(f"⚙️  Proceso: ACTIVO (PID: {proc.info['pid']})")
-                break
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
+            data = resp.json()
+            resultado.append(f"Respuesta: {json.dumps(data, ensure_ascii=False)[:300]}")
+        except Exception:
+            resultado.append(f"Respuesta: {resp.text[:200]}")
 
-    if not proceso_activo:
-        resultado.append(f"⚙️  Proceso: ❌ NO ESTÁ CORRIENDO")
-
-    # Verificar archivo de log
-    log_files = list(bot_path.glob("*.log")) + list(bot_path.glob("logs/*.log"))
-    if log_files:
-        log_file = sorted(log_files, key=lambda x: x.stat().st_mtime, reverse=True)[0]
-        from datetime import timedelta
-        mtime = datetime.fromtimestamp(log_file.stat().st_mtime)
-        age = datetime.now() - mtime
-        resultado.append(f"📋 Log: {log_file.name} (actualizado hace {int(age.total_seconds()/60)} min)")
-
-        # Verificar errores recientes en el log
-        try:
-            with open(log_file, "r", encoding="utf-8", errors="replace") as f:
-                lines = f.readlines()[-20:]
-            errors = [l.strip() for l in lines if "error" in l.lower() or "exception" in l.lower()]
-            if errors:
-                resultado.append(f"⚠️  Errores recientes encontrados: {len(errors)}")
-                resultado.append(f"   Último: {errors[-1][:200]}")
-            else:
-                resultado.append("✅ Sin errores recientes en el log")
-        except Exception as e:
-            resultado.append(f"📋 No se pudo leer el log: {e}")
-    else:
-        resultado.append("📋 No se encontró archivo de log")
-
-    # Verificar .env del bot
-    env_file = bot_path / ".env"
-    if env_file.exists():
-        resultado.append("🔑 Archivo .env: ✅ presente")
-    else:
-        resultado.append("🔑 Archivo .env: ⚠️ no encontrado")
-
-    # Verificar package.json (para Node.js)
-    if runtime == "node":
-        pkg_file = bot_path / "package.json"
-        if pkg_file.exists():
-            resultado.append("📦 package.json: ✅ presente")
-
-    status = "activo" if proceso_activo else "detenido"
-    update_bot_status(display_name, status)
+    except requests.exceptions.ConnectionError:
+        resultado.append("Conexion rechazada - bot CAIDO o no responde")
+        update_bot_status(display_name, "caido", "Connection refused")
+    except requests.exceptions.Timeout:
+        resultado.append("Timeout - bot tarda mas de 10 segundos en responder")
+        update_bot_status(display_name, "timeout")
+    except Exception as e:
+        resultado.append(f"Error verificando: {e}")
+        update_bot_status(display_name, "error", str(e))
 
     return "\n".join(resultado)
 
