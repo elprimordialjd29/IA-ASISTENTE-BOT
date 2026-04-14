@@ -156,10 +156,18 @@ class VanegasMonitor:
                 update_bot_status(bot["display"], "caido", "Sin respuesta")
                 # Solo alerta si es la primera vez o si cambió de activo a caído
                 if not prev_caido:
+                    # Pedir a Claude diagnóstico y solución
+                    diagnostico = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: self.agent.quick_message(
+                            f"El bot '{bot['display']}' en Railway no responde ({bot['url']}). "
+                            f"Dame en 3 bullets concretos qué puede estar fallando y cómo solucionarlo. "
+                            f"Sin introducciones, solo los bullets."
+                        )
+                    )
                     await self.send(
                         f"*ALERTA: {bot['display']} CAIDO*\n\n"
-                        f"No responde en: {bot['url']}\n"
-                        f"Revisa el deployment en Railway."
+                        f"No responde en: {bot['url']}\n\n"
+                        f"*Posibles causas y soluciones:*\n{diagnostico}"
                     )
             except Exception as e:
                 logger.error(f"Error chequeando bot {bot['nombre']}: {e}")
